@@ -1,73 +1,99 @@
 import numpy as np
 
-# Initial state probabilities
-initial_prob = np.array([0.4, 0.2, 0.2, 0.2])
+# Dataset: Sector and Number of transactions
+data = {
+    'Service Centers': 287,
+    'Social Joints': 730,
+    'Health': 100,
+    'Restaurants': 1383
+}
 
-# Observation data (Number of transactions)
-observations = np.array([443, 216, 141, 1200])
-
-# Initialize transition matrix
-transition_matrix = np.array([[0.1, 0.3, 0.5, 0.1],
-                              [0.2, 0.3, 0.1, 0.4],
-                              [0.6, 0.1, 0.1, 0.2],
-                              [0.1, 0.3, 0.3, 0.3]])
+# Observations (based on sectors)
+observations = list(data.values())
 
 # Number of states
-num_states = transition_matrix.shape[0]
+num_states = len(data)
+
+# Random initialization of initial probabilities and emission probabilities
+initial_probs = np.random.rand(num_states)
+initial_probs /= initial_probs.sum()
+
+emission_probs = np.random.rand(num_states, num_states)
+emission_probs /= emission_probs.sum(axis=1, keepdims=True)
 
 # Number of observations
 num_observations = len(observations)
 
-# Epsilon value for convergence check
-epsilon = 1e-6
 
-# Forward algorithm
-def forward_algorithm(observations, initial_prob, transition_matrix):
-    alpha = np.zeros((len(observations), len(transition_matrix)))
-    alpha[0] = initial_prob * observations[0]
-    for t in range(1, len(observations)):
-        alpha[t] = np.dot(alpha[t - 1], transition_matrix) * observations[t]
+def forward_algorithm(obs_seq, init_probs, emiss_probs):
+    """
+    Forward Algorithm: Computes the forward probabilities for a given observation sequence.
+    """
+    alpha = np.zeros((len(obs_seq), len(init_probs)))
+    # Initialization
+    alpha[0] = init_probs * emiss_probs[:, 0]
+
+    # Induction
+    for t in range(1, len(obs_seq)):
+        for j in range(len(init_probs)):
+            alpha[t, j] = np.sum(alpha[t - 1] * emiss_probs[:, j]) * obs_seq[t]
+
     return alpha
 
-# Backward algorithm
-def backward_algorithm(observations, transition_matrix):
-    beta = np.zeros((len(observations), len(transition_matrix)))
+
+def backward_algorithm(obs_seq, emiss_probs):
+    """
+    Backward Algorithm: Computes the backward probabilities for a given observation sequence.
+    """
+    beta = np.zeros((len(obs_seq), len(emiss_probs)))
+
+    # Initialization
     beta[-1] = 1
-    for t in range(len(observations) - 2, -1, -1):
-        beta[t] = np.dot(transition_matrix, observations[t + 1] * beta[t + 1])
+
+    # Induction
+    for t in range(len(obs_seq) - 2, -1, -1):
+        for i in range(len(emiss_probs)):
+            beta[t, i] = np.sum(beta[t + 1] * emiss_probs[:, i] * obs_seq[t + 1])
+
     return beta
 
-# EM Algorithm
-def EM_algorithm(observations, initial_prob, transition_matrix, epsilon=1e-6):
-    converged = False
-    while not converged:
-        # Expectation step
-        forward_prob = forward_algorithm(observations, initial_prob, transition_matrix)
-        backward_prob = backward_algorithm(observations, transition_matrix)
 
-        # Normalization
-        gamma = forward_prob * backward_prob
-        gamma /= np.sum(gamma, axis=1, keepdims=True)
+def expectation_maximization(observations, initial_probs, emission_probs, num_iterations=100):
+    """
+    Expectation-Maximization Algorithm: Updates HMM parameters using EM.
+    """
+    for iteration in range(num_iterations):
+        # E-step
+        forward = forward_algorithm(observations, initial_probs, emission_probs)
+        backward = backward_algorithm(observations, emission_probs)
+        xi = np.zeros((len(observations) - 1, len(emission_probs), len(emission_probs)))
 
-        # Maximization step
-        new_initial_prob = gamma[0]
-        new_transition_matrix = np.sum(forward_prob[:-1, :, None] * transition_matrix[None, :, :] *
-                                       backward_prob[1:, None, :] * observations[1:, None, None] /
-                                       np.sum(forward_prob[-1]), axis=0)
+        for t in range(len(observations) - 1):
+            numerator = np.dot(forward[t, :].reshape(-1, 1), backward[t + 1, :].reshape(1, -1)) * \
+                        emission_probs * observations[t + 1]
+            denominator = np.sum(numerator)
+            xi[t, :, :] = numerator / denominator
 
-        # Check for convergence
-        if np.max(np.abs(new_transition_matrix - transition_matrix)) < epsilon:
-            converged = True
+        gamma = np.sum(xi, axis=1)
 
-        # Update transition matrix and initial probabilities
-        transition_matrix = new_transition_matrix
-        initial_prob = new_initial_prob
+        # M-step
+        initial_probs = gamma[0, :]
+        emission_probs = np.sum(xi, axis=0) / np.sum(gamma, axis=0).reshape(-1, 1)
 
-    return transition_matrix
+    return initial_probs, emission_probs
 
-# Train the model using EM algorithm
-optimized_transition_matrix = EM_algorithm(observations, initial_prob, transition_matrix, epsilon)
 
-# Print the optimized transition matrix
-print("Optimized Transition Matrix:")
-print(optimized_transition_matrix)
+if __name__ == "__main__":
+    initial_probs_est, emission_probs_est = \
+        expectation_maximization(observations, initial_probs, emission_probs)
+
+    print("Estimated Initial Probabilities:")
+    print(initial_probs_est)
+    print("Estimated Emission Probabilities:")
+    print(emission_probs_est)
+
+    # Calculate log-likelihood
+    forward = forward_algorithm(observations, initial_probs_est, emission_probs_est)
+    log_likelihood = np.sum(np.log(forward[-1]))
+
+    print("Log-Likelihood:", log_likelihood)
