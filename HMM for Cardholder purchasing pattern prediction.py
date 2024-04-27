@@ -8,18 +8,19 @@ data = {
     'Restaurants': 1383
 }
 
+# Initial probabilities (random initialization)
+initial_probs = np.random.rand(len(data))
+initial_probs /= initial_probs.sum()
+
+# Emission probabilities (random initialization)
+emission_probs = np.random.rand(len(data), len(data))
+emission_probs /= emission_probs.sum(axis=1, keepdims=True)
+
 # Observations (based on sectors)
 observations = list(data.values())
 
 # Number of states
 num_states = len(data)
-
-# Random initialization of initial probabilities and emission probabilities
-initial_probs = np.random.rand(num_states)
-initial_probs /= initial_probs.sum()
-
-emission_probs = np.random.rand(num_states, num_states)
-emission_probs /= emission_probs.sum(axis=1, keepdims=True)
 
 # Number of observations
 num_observations = len(observations)
