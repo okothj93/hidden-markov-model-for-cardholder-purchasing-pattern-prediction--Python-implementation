@@ -1,0 +1,85 @@
+import nltk
+import string
+from sklearn.model_selection import train_test_split
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize
+
+# Download necessary NLTK data
+nltk.download('punkt')
+nltk.download('stopwords')
+
+# Example dataset
+data = [
+    ("I love this product! It's amazing.", "Positive"),
+    ("This is the worst thing I've ever bought.", "Negative"),
+    ("I'm not sure if I like it or not.", "Neutral"),
+    ("Absolutely fantastic!", "Positive"),
+    ("I hate it, terrible experience.", "Negative"),
+    ("It's okay, nothing special.", "Neutral"),
+    ("The service was very disappointing.", "Negative"),
+    ("I'm very happy with my purchase.", "Positive"),
+    ("It could be better.", "Neutral"),
+    ("What a waste of money!", "Negative")
+]
+
+# Separate the dataset into texts and labels
+texts, labels = zip(*data)
+
+# Step 1: Data Preprocessing
+def preprocess_text(text):
+    # Lowercase the text
+    text = text.lower()
+    
+    # Remove punctuation
+    text = text.translate(str.maketrans('', '', string.punctuation))
+    
+    # Tokenize the text
+    tokens = word_tokenize(text)
+    
+    # Remove stopwords
+    stop_words = set(stopwords.words('english'))
+    tokens = [word for word in tokens if word not in stop_words]
+    
+    return ' '.join(tokens)
+
+# Preprocess all texts
+texts = [preprocess_text(text) for text in texts]
+
+# Step 2: Vectorization using TF-IDF
+vectorizer = TfidfVectorizer()
+X = vectorizer.fit_transform(texts)
+
+# Step 3: Train-Test Split
+X_train, X_test, y_train, y_test = train_test_split(X, labels, test_size=0.2, random_state=42)
+
+# Step 4: Model Training using Logistic Regression
+classifier = LogisticRegression()
+classifier.fit(X_train, y_train)
+
+# Step 5: Evaluation Metrics
+y_pred = classifier.predict(X_test)
+
+accuracy = accuracy_score(y_test, y_pred)
+precision = precision_score(y_test, y_pred, average='weighted')
+recall = recall_score(y_test, y_pred, average='weighted')
+f1 = f1_score(y_test, y_pred, average='weighted')
+
+print(f"Accuracy: {accuracy:.2f}")
+print(f"Precision: {precision:.2f}")
+print(f"Recall: {recall:.2f}")
+print(f"F1 Score: {f1:.2f}")
+
+# Predict sentiment for a new sentence
+def predict_sentiment(text):
+    processed_text = preprocess_text(text)
+    text_vector = vectorizer.transform([processed_text])
+    prediction = classifier.predict(text_vector)
+    return prediction[0]
+
+# Example usage
+new_text = "I really love this!"
+predicted_sentiment = predict_sentiment(new_text)
+print(f"Sentiment of '{new_text}': {predicted_sentiment}")
